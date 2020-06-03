@@ -112,11 +112,16 @@ func analyse(path string, debug bool) string {
 	unvisited := []string{"Init"}
 	visited := []string{}
 
-	for 0 < len(unvisited) {
+	for len(unvisited) > 0 {
 		// uml += fmt.Sprintf("\n-vis: %s", visited)
 		// uml += fmt.Sprintf("\n-uns: %s", unvisited)
 
-		state := pf.states[unvisited[0]]
+		state, ok := pf.states[unvisited[0]]
+		if !ok {
+			unvisited = []string{"stepInit"}
+			state = pf.states[unvisited[0]]
+		}
+
 		visited = append(visited, state.Name)
 		// uml += fmt.Sprintf("\n:state.Migr:[%s]", state.Migr)
 
@@ -166,8 +171,10 @@ func analyse(path string, debug bool) string {
 			case "JumpExt":
 				uml += fmt.Sprintf("\n%s --> %s : %s", state.Name, ret.Args[0].Fun, ret.Var.Fun)
 				unvisited = append(unvisited, ret.Args[0].Fun)
-				uml += fmt.Sprintf("\n%s -[#DarkGreen]-> %s : %s+(StepMigration)", state.Name, ret.StepMigration, ret.Var.Fun)
-				unvisited = append(unvisited, ret.StepMigration)
+				if len(ret.StepMigration) > 0 {
+					uml += fmt.Sprintf("\n%s -[#DarkGreen]-> %s : %s+(StepMigration)", state.Name, ret.StepMigration, ret.Var.Fun)
+					unvisited = append(unvisited, ret.StepMigration)
+				}
 			case "ThenRepeat":
 				uml += fmt.Sprintf("\n%s --> %s : ThenRepeat", state.Name, state.Name)
 			case "RepeatOrJumpElse":
@@ -284,6 +291,10 @@ func (pf *ParsedFile) parseMethod(fn *ast.FuncDecl) {
 		pf.dbgmsg("\n:parseMethod: skip %s - No receiver", fn.Name.Name)
 	} else {
 		for _, fld := range fn.Recv.List {
+			if len(fld.Names) == 0 {
+				continue
+			}
+
 			pf.parseRecv(fn, fld)
 		}
 	}
@@ -517,6 +528,26 @@ func (pf *ParsedFile) collectRets(retStmt *ast.ReturnStmt, level string) []*Ret 
 								pf.dbgmsg("\n:collectRets: [ERR]: UNK JumpExt transition")
 							}
 							accArgs = append(accArgs, arg)
+						case *ast.FuncLit:
+							fl := retarg.(*ast.FuncLit)
+							var r []*Ret
+							for _, f := range fl.Body.List {
+								switch f.(type) {
+								case *ast.ReturnStmt:
+									ret0 := f.(*ast.ReturnStmt)
+									//TODO remove duplicates
+									r = append(r, pf.collectRets(ret0, "Deep")...)
+								default:
+									pf.dbgmsg("\n:collectRets: [ERR]: UNK FuncLit return")
+								}
+							}
+							for _, ret := range r {
+								if len(ret.Args) == 0 && ret.Str == "ctx.Stop()" {
+									accArgs = append(accArgs, ret.Var)
+								} else {
+									accArgs = append(accArgs, ret.Args...)
+								}
+							}
 						default:
 							pf.dbgmsg("\n:collectRets: [ERR]: UNKNOWN RETARGtype [%s] :OF: %s", reflect.TypeOf(retarg), retarg)
 						}
