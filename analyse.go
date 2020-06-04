@@ -116,10 +116,14 @@ func analyse(path string, debug bool) string {
 		// uml += fmt.Sprintf("\n-vis: %s", visited)
 		// uml += fmt.Sprintf("\n-uns: %s", unvisited)
 
-		state, ok := pf.states[unvisited[0]]
+		top := unvisited[0]
+		state, ok := pf.states[top]
 		if !ok {
+			if unvisited[0] != "Init" {
+				panic(fmt.Sprintf("Failed to found step:%s", top))
+			}
 			unvisited = []string{"stepInit"}
-			state = pf.states[unvisited[0]]
+			state = pf.states[top]
 		}
 
 		visited = append(visited, state.Name)
@@ -163,17 +167,25 @@ func analyse(path string, debug bool) string {
 			case "Stop":
 				uml += fmt.Sprintf("\n%s --> [*]", state.Name)
 			case "Jump", "ThenJump":
-				uml += fmt.Sprintf("\n%s --> %s : %s", state.Name, ret.Args[0].Fun, ret.Var.Fun)
-				unvisited = append(unvisited, ret.Args[0].Fun)
-				if nil != possible_migrations {
-					pf.states[ret.Args[0].Fun].Prop = SetUniWoDup(pf.states[ret.Args[0].Fun].Prop, possible_migrations)
+				if ret.Args[0].Fun == "Stop" {
+					uml += fmt.Sprintf("\n%s --> [*]", state.Name)
+				} else {
+					uml += fmt.Sprintf("\n%s --> %s : %s", state.Name, ret.Args[0].Fun, ret.Var.Fun)
+					unvisited = append(unvisited, ret.Args[0].Fun)
+					if nil != possible_migrations {
+						pf.states[ret.Args[0].Fun].Prop = SetUniWoDup(pf.states[ret.Args[0].Fun].Prop, possible_migrations)
+					}
 				}
 			case "JumpExt":
-				uml += fmt.Sprintf("\n%s --> %s : %s", state.Name, ret.Args[0].Fun, ret.Var.Fun)
-				unvisited = append(unvisited, ret.Args[0].Fun)
-				if len(ret.StepMigration) > 0 {
-					uml += fmt.Sprintf("\n%s -[#DarkGreen]-> %s : %s+(StepMigration)", state.Name, ret.StepMigration, ret.Var.Fun)
-					unvisited = append(unvisited, ret.StepMigration)
+				if ret.Args[0].Fun == "Stop" {
+					uml += fmt.Sprintf("\n%s --> [*]", state.Name)
+				} else {
+					uml += fmt.Sprintf("\n%s --> %s : %s", state.Name, ret.Args[0].Fun, ret.Var.Fun)
+					unvisited = append(unvisited, ret.Args[0].Fun)
+					if len(ret.StepMigration) > 0 {
+						uml += fmt.Sprintf("\n%s -[#DarkGreen]-> %s : %s+(StepMigration)", state.Name, ret.StepMigration, ret.Var.Fun)
+						unvisited = append(unvisited, ret.StepMigration)
+					}
 				}
 			case "ThenRepeat":
 				uml += fmt.Sprintf("\n%s --> %s : ThenRepeat", state.Name, state.Name)
@@ -301,7 +313,6 @@ func (pf *ParsedFile) parseMethod(fn *ast.FuncDecl) {
 }
 
 func (pf *ParsedFile) parseRecv(fn *ast.FuncDecl, fld *ast.Field) {
-
 	// Receiver
 	recv := &RecvPair{
 		Name: fld.Names[0].Name,
@@ -470,7 +481,7 @@ func (pf *ParsedFile) collectRets(retStmt *ast.ReturnStmt, level string) []*Ret 
 								item.Var.Fun, item.Var.Obj, item.Var.Fun)
 						}
 					default:
-						fmt.Printf("\n:collectRets: [ERR]: UNKNOWN RETSELECTOR %s | ",
+						pf.dbgmsg("\n:collectRets: [ERR]: UNKNOWN RETSELECTOR %s | ",
 							reflect.TypeOf(retSelector.X),
 							pf.code[retSelector.X.Pos()-1:retSelector.X.End()-1],
 						)
@@ -541,12 +552,9 @@ func (pf *ParsedFile) collectRets(retStmt *ast.ReturnStmt, level string) []*Ret 
 									pf.dbgmsg("\n:collectRets: [ERR]: UNK FuncLit return")
 								}
 							}
+
 							for _, ret := range r {
-								if len(ret.Args) == 0 && ret.Str == "ctx.Stop()" {
-									accArgs = append(accArgs, ret.Var)
-								} else {
-									accArgs = append(accArgs, ret.Args...)
-								}
+								accArgs = append(accArgs, ret.Var)
 							}
 						default:
 							pf.dbgmsg("\n:collectRets: [ERR]: UNKNOWN RETARGtype [%s] :OF: %s", reflect.TypeOf(retarg), retarg)
