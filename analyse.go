@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -45,11 +46,23 @@ type Ret struct {
 	StepMigration string
 }
 
+type SortedRet []*Ret
+
+func (a SortedRet) Len() int           { return len(a) }
+func (a SortedRet) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SortedRet) Less(i, j int) bool { return a[i].Var.Fun < a[j].Var.Fun }
+
 type Variant struct {
 	Obj string
 	Fun string
 	Str string // string representation
 }
+
+type SortedVariant []Variant
+
+func (a SortedVariant) Len() int           { return len(a) }
+func (a SortedVariant) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SortedVariant) Less(i, j int) bool { return a[i].Fun < a[j].Fun }
 
 func main() {
 	path := flag.String("f", "", "Path to file")
@@ -155,9 +168,12 @@ func analyse(path string, debug bool) string {
 				unvisited = append(unvisited, pos_migr)
 			}
 		}
+		sort.Sort(SortedRet(state.Rets))
 
 		for _, ret := range state.Rets {
 			// uml += fmt.Sprintf("\n%s -[#green]-> %s", state.Name, ret)
+
+			sort.Sort(SortedVariant(ret.Args))
 
 			pf.dbgmsg("\n%s: ['%s']", ret.Lvl, ret.Str)
 			pf.dbgmsg("\nfun: ['%s']\nobj: ['%s']", ret.Var.Fun, ret.Var.Obj)
