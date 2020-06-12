@@ -71,7 +71,8 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 
 		connIdx := 0
 
-		if n := len(step.Migrations); n > 0 {
+		if n := len(step.Migrations); step.MType == Execution && n > 0 {
+
 			mirgateNames := make([]string, 0, n)
 			for k := range step.Migrations {
 				if k != "" {
