@@ -12,7 +12,7 @@ func main() {
 
 	fs := NewFileSet()
 	// if fs.smachinePkg != "" {
-	// 	name := `C:\Users2\Cyrax1\Documents\Insolar\go\src\github.com\insolar\assured-ledger\ledger-core\virtual\execute\execute.go`
+	// 	name := `\Insolar\go\src\github.com\insolar\assured-ledger\ledger-core\virtual\execute\execute.go`
 	// 	fs.AddFile(name)
 	// 	fs.WriteUMLs(false)
 	// 	return
