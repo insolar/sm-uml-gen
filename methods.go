@@ -51,18 +51,20 @@ type MethodDecl struct {
 }
 
 type MethodTransition struct {
-	Condition        string
-	Operation        string
-	Transition       string
-	Migration        string
-	InheritMigration bool
+	Condition  string
+	Operation  string
+	Transition string
+	Migration  string
 
 	DelayedStart string
 
 	HiddenPropagate string
-	TransitionTo    *MethodDecl
-	HiddenPropTo    *MethodDecl
-	MigrationTo     *MethodDecl
+
+	InheritMigration bool
+
+	TransitionTo *MethodDecl
+	HiddenPropTo *MethodDecl
+	MigrationTo  *MethodDecl
 }
 
 func (p *MethodDecl) parseFuncBody(bodyAst *ast.BlockStmt, fs *File) {
@@ -154,4 +156,26 @@ func (p *MethodDecl) AddTransition(tr MethodTransition) {
 	default:
 		repTr.Operation += `, ` + tr.Operation
 	}
+}
+
+func (p *MethodDecl) AddAdapterCall(name, prepType, adapter string) {
+	if name == "" {
+		return
+	}
+
+	p.Transitions = append(p.Transitions, MethodTransition{
+		Operation:  prepType, // + `.` + name,
+		Transition: adapter,
+	})
+
+	for _, sub := range p.SubSteps {
+		if sub.Name == adapter {
+			return
+		}
+	}
+
+	p.SubSteps = append(p.SubSteps, &MethodDecl{
+		Name:         adapter,
+		IsSubroutine: true,
+	})
 }

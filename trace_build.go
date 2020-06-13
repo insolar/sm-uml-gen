@@ -365,12 +365,29 @@ func (p *ExecTrace) buildOperation(su *StateUpdate) (op, adapter string) {
 		su = su.parent.parent
 	}
 
-	if su != nil {
-		adapter = p.formatUpdateName(su)
-		for su = su.parent; su.HasName(); su = su.parent {
-			adapter = p.formatUpdateName(su) + `.` + adapter
-		}
-	}
+	adapter = p.buildCallChain(su)
 
 	return op, adapter
+}
+
+func (p *ExecTrace) buildCallChain(su *StateUpdate) string {
+	if su == nil {
+		return ""
+	}
+	s := p.formatUpdateName(su)
+	for su = su.parent; su.HasName(); su = su.parent {
+		s = p.formatUpdateName(su) + `.` + s
+	}
+	return s
+}
+
+func (p *ExecTrace) addAdapterCall(start, prep *StateUpdate) {
+	adapter := p.buildCallChain(prep.parent)
+
+	a := prep.parent
+	prep.parent = nil
+	prepType := p.buildCallChain(start.parent)
+	prep.parent = a
+
+	p.md.AddAdapterCall(start.name, prepType, adapter)
 }

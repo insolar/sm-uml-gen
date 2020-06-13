@@ -3,6 +3,7 @@ package main
 import (
 	"go/ast"
 	"go/token"
+	"strings"
 )
 
 var contextMarker = &StateUpdate{isContext: true}
@@ -371,9 +372,16 @@ func (p *ExecTrace) parseCallToCtx(expr ast.Expr) {
 	switch arg := expr.(type) {
 	case *ast.CallExpr:
 		call := p.exprToValue(arg.Fun)
-		if call == nil || call.parent != contextMarker || len(arg.Args) != 1 {
+		switch {
+		case call == nil:
+			return
+		case call.parent != contextMarker:
+			p.lookForAdapterCall(call)
+			return
+		case len(arg.Args) != 1:
 			return
 		}
+
 		switch call.name {
 		case "SetDefaultMigration":
 			p.migration = arg.Args[0]
@@ -387,6 +395,43 @@ func (p *ExecTrace) parseCallToCtx(expr ast.Expr) {
 		}
 		p.usages[call.name] = struct{}{}
 	}
+}
+
+func (p *ExecTrace) lookForAdapterCall(su *StateUpdate) {
+	if len(su.args) != 0 {
+		return
+	}
+
+	switch su.name {
+	case "Start":
+	case "Send":
+	default:
+		return
+	}
+
+	top := su
+
+	for su = su.parent; su.HasName(); su = su.parent {
+		if strings.HasPrefix(su.name, "Prepare") {
+			if p.hasContextArg(su.args) >= 0 {
+				p.addAdapterCall(top, su)
+			}
+			return
+		}
+	}
+}
+
+func (p *ExecTrace) hasContextArg(args []ast.Expr) int {
+	for i, arg := range args {
+		if p.isContextArg(arg) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (p *ExecTrace) isContextArg(arg ast.Expr) bool {
+	return p.exprToValue(arg) == contextMarker
 }
 
 func (p *ExecTrace) exprToValues(exprs []ast.Expr) []exprResult {
