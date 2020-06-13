@@ -125,7 +125,7 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 
 			switch {
 			case tr.Transition == "<stop>":
-				p.jump(stepAlias, `[*]`, note, waitOperation)
+				p.jumpFixed(stepAlias, `[*]`, note)
 				continue
 			case tr.Transition == "": // self loop
 				if tr.DelayedStart == "" {
