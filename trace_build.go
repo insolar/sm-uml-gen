@@ -359,15 +359,22 @@ func (p *ExecTrace) buildOperation(su *StateUpdate) (op, adapter string) {
 	switch {
 	case su.name == op:
 		op = ""
-		su = su.parent
 	case su.parent != nil && su.parent.name == op && len(su.args) == 0:
 		op = su.name
-		su = su.parent.parent
+		su = su.parent
+	default:
+		return "", ""
 	}
 
-	adapter = p.buildCallChain(su)
+	if prep, adapt := p._extractAdapterCall(su); prep != nil {
+		prepName := ""
+		prepName, adapter = p.getAdapterCallNames(prep, adapt)
+		p.md.AddAdapter(adapter)
 
-	return op, adapter
+		return prepName + `.` + op, adapter
+	}
+
+	return "", ""
 }
 
 func (p *ExecTrace) buildCallChain(su *StateUpdate) string {
@@ -381,13 +388,18 @@ func (p *ExecTrace) buildCallChain(su *StateUpdate) string {
 	return s
 }
 
-func (p *ExecTrace) addAdapterCall(start, prep *StateUpdate) {
-	adapter := p.buildCallChain(prep.parent)
+func (p *ExecTrace) getAdapterCallNames(start, prep *StateUpdate) (prepName, adapter string) {
+	adapter = p.buildCallChain(prep.parent)
 
 	a := prep.parent
 	prep.parent = nil
-	prepType := p.buildCallChain(start.parent)
+	prepName = p.buildCallChain(start.parent)
 	prep.parent = a
 
-	p.md.AddAdapterCall(start.name, prepType, adapter)
+	return prepName, adapter
+}
+
+func (p *ExecTrace) addAdapterCall(start, prep *StateUpdate) {
+	prepName, adapter := p.getAdapterCallNames(start, prep)
+	p.md.AddAdapterCall(start.name, prepName, adapter)
 }

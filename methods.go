@@ -168,6 +168,14 @@ func (p *MethodDecl) AddAdapterCall(name, prepType, adapter string) {
 		Transition: adapter,
 	})
 
+	p.AddAdapter(adapter)
+}
+
+func (p *MethodDecl) AddAdapter(adapter string) {
+	if adapter == "" {
+		return
+	}
+
 	for _, sub := range p.SubSteps {
 		if sub.Name == adapter {
 			return

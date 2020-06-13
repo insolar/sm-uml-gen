@@ -409,16 +409,23 @@ func (p *ExecTrace) lookForAdapterCall(su *StateUpdate) {
 		return
 	}
 
+	if prep, adapter := p._extractAdapterCall(su); prep != nil {
+		p.addAdapterCall(prep, adapter)
+	}
+}
+
+func (p *ExecTrace) _extractAdapterCall(su *StateUpdate) (*StateUpdate, *StateUpdate) {
 	top := su
 
 	for su = su.parent; su.HasName(); su = su.parent {
 		if strings.HasPrefix(su.name, "Prepare") {
 			if p.hasContextArg(su.args) >= 0 {
-				p.addAdapterCall(top, su)
+				return top, su
 			}
-			return
+			return nil, nil
 		}
 	}
+	return nil, nil
 }
 
 func (p *ExecTrace) hasContextArg(args []ast.Expr) int {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type Writer struct {
@@ -114,22 +115,17 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 					}
 					continue
 				}
-				fork := p.newNamelessStep(d, "", " <<fork>>")
-				p.jumpFixed(stepAlias, fork, tr.Condition)
-				p.jumpFixed(fork, p.newNamelessStep(d, tr.DelayedStart, " <<sdlreceive>>"), "DelayedStart")
-				p.jump(fork, stepAlias, tr.Operation)
+				fork, op := p.jumpFork(d, stepAlias, tr.DelayedStart, tr.Condition, tr.Operation)
+				p.jump(fork, stepAlias, op)
 
 			case tr.DelayedStart != "":
-				fork := p.newNamelessStep(d, "", " <<fork>>")
-				p.jumpFixed(stepAlias, fork, tr.Condition)
-				p.jumpFixed(fork, p.newNamelessStep(d, tr.DelayedStart, " <<sdlreceive>>"), "DelayedStart")
-
+				fork, op := p.jumpFork(d, stepAlias, tr.DelayedStart, tr.Condition, tr.Operation)
 				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
-				p.jump(fork, toStep, tr.Operation)
+				p.jump(fork, toStep, op)
 
 			default:
 				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
-				if tr.Operation != "" {
+				if tr.Operation != "" && (tr.TransitionTo == nil || !tr.TransitionTo.IsSubroutine) {
 					p.jump(stepAlias, toStep, note)
 				} else {
 					p.jumpFixed(stepAlias, toStep, note)
@@ -137,6 +133,17 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 			}
 		}
 	}
+}
+
+func (p *Writer) jumpFork(d *SMDecl, from, toAdapter, cond, op string) (forkAlias, nextOp string) {
+	fork := p.newNamelessStep(d, "", " <<fork>>")
+	adapter := p.stepAlias(d, toAdapter, d.findStep(toAdapter))
+	p.jumpFixed(from, fork, cond)
+
+	i := strings.IndexByte(op, '.') // MUST be there
+
+	p.jumpFixed(fork, adapter, op[:i])
+	return fork, op[i+1:]
 }
 
 func (p *Writer) jumpMigrate(from, to string) {
