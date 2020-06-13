@@ -24,7 +24,10 @@ func (p *ExecTrace) addTransition(su *StateUpdate) {
 	case 0:
 		fallthrough
 	default:
-		if !p.addContextOpTransition(su, &mt) && mt.Transition == "" {
+		if !p.addContextOpTransition(su, &mt) {
+			if mt.Transition == "" {
+				return
+			}
 			mt.Transition = "<unknown>"
 		}
 	}
@@ -66,6 +69,10 @@ func (p *ExecTrace) addContextOpTransition(su *StateUpdate, mt *MethodTransition
 		mt.Transition = "<stop>"
 		mt.InheritMigration = false
 		return true
+
+	case "Stay":
+		mt.Operation = ""
+		return false
 
 	case "Stop":
 		mt.Transition = "<stop>"

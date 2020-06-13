@@ -89,47 +89,60 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 
 		for _, tr := range step.Transitions {
 			connIdx++
-			note := ""
-			if tr.Operation != "" || tr.Condition != "" {
-				if tr.Condition == "" {
-					note = tr.Operation
-				} else {
-					note = tr.Condition + `\n` + tr.Operation
+
+			waitOperation := false
+
+			if tr.TransitionTo == nil || !tr.TransitionTo.IsSubroutine {
+				waitOperation = tr.Operation != ""
+
+				m := ""
+				switch {
+				case tr.Transition == "<stop>":
+					//
+				case tr.Migration != "":
+					m = `Migrate: ` + tr.Migration
+				case !tr.InheritMigration:
+					m = "Migrate: <nil>"
 				}
+				switch {
+				case m == "":
+				case tr.Operation == "":
+					tr.Operation = m
+				default:
+					tr.Operation = m + `\n` + tr.Operation
+				}
+			}
+
+			note := ""
+			switch {
+			case tr.Operation == "":
+				note = tr.Condition
+			case tr.Condition == "":
+				note = tr.Operation
+			default:
+				note = tr.Condition + `\n` + tr.Operation
 			}
 
 			switch {
 			case tr.Transition == "<stop>":
-				if note != "" {
-					p.L(stepAlias, " -->[*] : ", note)
-				} else {
-					p.L(stepAlias, " -->[*]")
-				}
+				p.jump(stepAlias, `[*]`, note, waitOperation)
 				continue
 			case tr.Transition == "": // self loop
 				if tr.DelayedStart == "" {
-					if tr.Operation != "" {
-						p.jump(stepAlias, stepAlias, note)
-					} else {
-						p.jumpFixed(stepAlias, stepAlias, note)
-					}
+					p.jump(stepAlias, stepAlias, note, waitOperation)
 					continue
 				}
 				fork, op := p.jumpFork(d, stepAlias, tr.DelayedStart, tr.Condition, tr.Operation)
-				p.jump(fork, stepAlias, op)
+				p.jump(fork, stepAlias, op, waitOperation)
 
 			case tr.DelayedStart != "":
 				fork, op := p.jumpFork(d, stepAlias, tr.DelayedStart, tr.Condition, tr.Operation)
 				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
-				p.jump(fork, toStep, op)
+				p.jump(fork, toStep, op, waitOperation)
 
 			default:
 				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
-				if tr.Operation != "" && (tr.TransitionTo == nil || !tr.TransitionTo.IsSubroutine) {
-					p.jump(stepAlias, toStep, note)
-				} else {
-					p.jumpFixed(stepAlias, toStep, note)
-				}
+				p.jump(stepAlias, toStep, note, waitOperation)
 			}
 		}
 	}
@@ -154,12 +167,16 @@ func (p *Writer) jumpFixed(from, to, note string) {
 	p.writeConn(from, to, "-->", note)
 }
 
-func (p *Writer) jump(from, to, note string) {
-	if note != "" {
-		p.writeConn(from, to, "--[dashed]>", note)
-		return
+func (p *Writer) jumpCond(from, to, note string) {
+	p.writeConn(from, to, "--[dashed]>", note)
+}
+
+func (p *Writer) jump(from, to, note string, conditional bool) {
+	if conditional {
+		p.jumpCond(from, to, note)
+	} else {
+		p.jumpFixed(from, to, note)
 	}
-	p.jumpFixed(from, to, "")
 }
 
 func (p *Writer) stepAlias(d *SMDecl, name string, step *MethodDecl) string {
