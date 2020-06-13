@@ -13,6 +13,7 @@ type StateUpdate struct {
 	name      string
 	args      []ast.Expr
 	isContext bool
+	isCall    bool
 }
 
 func (u StateUpdate) fullName() string {
@@ -20,4 +21,8 @@ func (u StateUpdate) fullName() string {
 		return u.name
 	}
 	return u.parent.fullName() + `.` + u.name
+}
+
+func (u *StateUpdate) HasName() bool {
+	return u != nil && u.name != ""
 }

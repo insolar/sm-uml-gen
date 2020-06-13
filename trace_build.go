@@ -24,7 +24,6 @@ func (p *ExecTrace) addTransition(su *StateUpdate) {
 	case 0:
 		fallthrough
 	default:
-		mt.Operation = p.buildOperation(su)
 		if !p.addContextOpTransition(su, &mt) && mt.Transition == "" {
 			mt.Transition = "<unknown>"
 		}
@@ -87,10 +86,12 @@ func (p *ExecTrace) addContextOpTransition(su *StateUpdate, mt *MethodTransition
 
 	case "ThenRepeatOrElse":
 		// unsupported - to be removed
+		mt.Operation, mt.DelayedStart = p.buildOperation(su.parent)
 		mt.Transition = "<ThenRepeatOrElse>"
 		return false
 
 	case "ThenRepeatOrJump":
+		mt.Operation, mt.DelayedStart = p.buildOperation(su.parent)
 		if len(su.args) == 0 {
 			return false
 		}
@@ -99,9 +100,21 @@ func (p *ExecTrace) addContextOpTransition(su *StateUpdate, mt *MethodTransition
 		return mt.Transition != ""
 
 	case "ThenRepeatOrJumpExt":
+		mt.Operation, mt.DelayedStart = p.buildOperation(su.parent)
 		p.md.AddTransition(*mt) // adds a repeat transition, because mt.Transition is empty
 
+	case "Repeat":
+		if len(su.args) == 0 {
+			return false
+		}
+		mt.Operation = `Repeat(` + p.shortenArgs(su.args, maxArgLen) + `)`
+		return true
+
 	default:
+		if strings.HasPrefix(su.name, "Then") {
+			mt.Operation, mt.DelayedStart = p.buildOperation(su.parent)
+		}
+
 		if strings.HasSuffix(su.name, "Ext") || strings.HasSuffix(su.name, "Step") {
 			break
 		}
@@ -246,6 +259,13 @@ func (p *ExecTrace) buildCondition() string {
 	return s
 }
 
+func (p *ExecTrace) shortenArgs(args []ast.Expr, maxLen int) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return p.shortenCond(args[0], maxLen)
+}
+
 func (p *ExecTrace) shortenCond(cond ast.Expr, maxLen int) string {
 	s := p._shortenCond(cond, maxLen)
 	if s != "" {
@@ -311,30 +331,46 @@ func (p *ExecTrace) _shortenCond(cond ast.Expr, maxLen int) string {
 	}
 }
 
-func (p *ExecTrace) buildOperation(su *StateUpdate) string {
-	if !strings.HasPrefix(su.name, "Then") {
-		return ""
+func (p *ExecTrace) formatUpdateName(su *StateUpdate) string {
+	if len(su.args) == 0 && !su.isCall {
+		return su.name
+	}
+	return su.name + `(` + p.shortenArgs(su.args, maxArgLen) + `)`
+}
+
+func (p *ExecTrace) buildOperation(su *StateUpdate) (op, adapter string) {
+	if !su.HasName() {
+		return "", ""
 	}
 
-	su = su.parent
-	switch {
-	case su == nil:
-		return ""
-	case su.name == "":
-		return ""
+	if su.isContext {
+		s := su.name
+		for su = su.parent; su.HasName(); su = su.parent {
+			if len(su.args) == 0 {
+				s = `.` + su.name
+			} else {
+				s = `.` + p.formatUpdateName(su)
+			}
+		}
+		return s, ""
 	}
 
-	s := su.name
-	su = su.parent
+	op = `DelayedStart`
 	switch {
-	case su == nil:
-		return s
-	case su == contextMarker:
-		return s
-		//		return p.md.CtxArg + `.` + s
-	case su.name == "":
-		return s
-	default:
-		return su.name + `.` + s
+	case su.name == op:
+		op = ""
+		su = su.parent
+	case su.parent != nil && su.parent.name == op && len(su.args) == 0:
+		op = su.name
+		su = su.parent.parent
 	}
+
+	if su != nil {
+		adapter = p.formatUpdateName(su)
+		for su = su.parent; su.HasName(); su = su.parent {
+			adapter = p.formatUpdateName(su) + `.` + adapter
+		}
+	}
+
+	return op, adapter
 }

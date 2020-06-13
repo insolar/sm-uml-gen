@@ -82,7 +82,7 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 			sort.Strings(mirgateNames)
 			for _, k := range mirgateNames {
 				toStep := p.stepAlias(d, k, d.findStep(k))
-				p.writeConn(stepAlias, toStep, "--[dotted]>", "")
+				p.jumpMigrate(stepAlias, toStep)
 			}
 		}
 
@@ -97,32 +97,87 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 				}
 			}
 
-			switch tr.Transition {
-			case "": // self loop
-				p.writeConn(stepAlias, stepAlias, "->", note)
-			case "<stop>":
+			switch {
+			case tr.Transition == "<stop>":
 				if note != "" {
 					p.L(stepAlias, " -->[*] : ", note)
 				} else {
 					p.L(stepAlias, " -->[*]")
 				}
+				continue
+			case tr.Transition == "": // self loop
+				if tr.DelayedStart == "" {
+					if tr.Operation != "" {
+						p.jump(stepAlias, stepAlias, note)
+					} else {
+						p.jumpFixed(stepAlias, stepAlias, note)
+					}
+					continue
+				}
+				fork := p.newNamelessStep(d, "", " <<fork>>")
+				p.jumpFixed(stepAlias, fork, tr.Condition)
+				p.jumpFixed(fork, p.newNamelessStep(d, tr.DelayedStart, " <<sdlreceive>>"), "DelayedStart")
+				p.jump(fork, stepAlias, tr.Operation)
+
+			case tr.DelayedStart != "":
+				fork := p.newNamelessStep(d, "", " <<fork>>")
+				p.jumpFixed(stepAlias, fork, tr.Condition)
+				p.jumpFixed(fork, p.newNamelessStep(d, tr.DelayedStart, " <<sdlreceive>>"), "DelayedStart")
+
+				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
+				p.jump(fork, toStep, tr.Operation)
+
 			default:
 				toStep := p.stepAlias(d, tr.Transition, tr.TransitionTo)
-				p.writeConn(stepAlias, toStep, "-->", note)
+				if tr.Operation != "" {
+					p.jump(stepAlias, toStep, note)
+				} else {
+					p.jumpFixed(stepAlias, toStep, note)
+				}
 			}
 		}
 	}
+}
+
+func (p *Writer) jumpMigrate(from, to string) {
+	p.writeConn(from, to, "--[dotted]>", "")
+}
+
+func (p *Writer) jumpFixed(from, to, note string) {
+	p.writeConn(from, to, "-->", note)
+}
+
+func (p *Writer) jump(from, to, note string) {
+	if note != "" {
+		p.writeConn(from, to, "--[dashed]>", note)
+		return
+	}
+	p.jumpFixed(from, to, "")
 }
 
 func (p *Writer) stepAlias(d *SMDecl, name string, step *MethodDecl) string {
 	if step != nil {
 		return fmt.Sprintf("T%02d_S%03d", d.SeqNo, step.StepNo)
 	}
-	p.unknownId++
-	stepAlias := fmt.Sprintf("T%02d_U%03d", d.SeqNo, p.unknownId)
-	p.L("state ", strconv.Quote(name), " as ", stepAlias)
+
+	stepAlias := p.newNamelessStep(d, name, "")
 	p.L(stepAlias, " : ", d.RType)
 	p.L(stepAlias, " : UNKNOWN ")
+	return stepAlias
+}
+
+func (p *Writer) newNamelessStep(d *SMDecl, name, stereotype string) string {
+	p.unknownId++
+	stepAlias := fmt.Sprintf("T%02d_U%03d", d.SeqNo, p.unknownId)
+	as := ""
+	switch {
+	case name != "":
+		name = strconv.Quote(name)
+		as = " as "
+	case stereotype == "":
+		return stepAlias
+	}
+	p.L("state ", name, as, stepAlias, stereotype)
 	return stepAlias
 }
 

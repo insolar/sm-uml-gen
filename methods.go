@@ -6,6 +6,7 @@ import (
 )
 
 const maxCondLen = 30
+const maxArgLen = 10
 
 type MethodType uint8
 
@@ -55,6 +56,8 @@ type MethodTransition struct {
 	Transition       string
 	Migration        string
 	InheritMigration bool
+
+	DelayedStart string
 
 	HiddenPropagate string
 	TransitionTo    *MethodDecl
@@ -113,7 +116,7 @@ func (p *MethodDecl) GetRepeatTransitionIdx() int {
 }
 
 func (p *MethodDecl) AddTransition(tr MethodTransition) {
-	if tr.Transition != "" {
+	if tr.Transition != "" || tr.DelayedStart != "" {
 		p.Transitions = append(p.Transitions, tr)
 		return
 	}
