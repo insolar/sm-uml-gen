@@ -101,7 +101,7 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 					//
 				case tr.Migration != "":
 					m = `Migrate: ` + tr.Migration
-				case !tr.InheritMigration:
+				case !tr.InheritMigration && !step.IsSubroutine:
 					m = "Migrate: <nil>"
 				}
 				switch {
