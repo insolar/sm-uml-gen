@@ -54,6 +54,7 @@ func (p *File) parseAst(fileAst *ast.File) {
 
 const TypeStateUpdate = "StateUpdate"
 const GetInitStateForFunc = "GetInitStateFor"
+const GetSubroutineInitState = "GetSubroutineInitState"
 
 func (p *File) parseFuncDecl(fd *ast.FuncDecl) *MethodDecl {
 	if fd.Type.Results == nil {
@@ -72,8 +73,9 @@ func (p *File) parseFuncDecl(fd *ast.FuncDecl) *MethodDecl {
 	case fd.Name == nil:
 		return nil
 	default:
-		if fd.Name.Name == GetInitStateForFunc {
-			md = p.findFuncWith(fd.Type.Results.List, GetInitStateForFunc, "InitFunc")
+		switch fd.Name.Name {
+		case GetInitStateForFunc, GetSubroutineInitState:
+			md = p.findFuncWith(fd.Type.Results.List, fd.Name.Name, "InitFunc")
 		}
 		if md == nil {
 			return nil

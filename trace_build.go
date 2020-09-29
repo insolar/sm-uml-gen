@@ -117,12 +117,23 @@ func (p *ExecTrace) addContextOpTransition(su *StateUpdate, mt *MethodTransition
 		mt.Operation = `Repeat(` + p.shortenArgs(su.args, maxArgLen) + `)`
 		return true
 
+	case "RestoreStep":
+		mt.WaitTransition = true
+		mt.Operation = su.name
+
 	default:
 		if strings.HasPrefix(su.name, "Then") {
+			switch op := su.parent.name; {
+			case op == "Sleep":
+				mt.WaitTransition = true
+			case strings.HasPrefix(op, "Wait"):
+				mt.WaitTransition = true
+			}
+
 			mt.Operation, mt.DelayedStart = p.buildOperation(su.parent)
 		}
 
-		if strings.HasSuffix(su.name, "Ext") || strings.HasSuffix(su.name, "Step") {
+		if strings.HasSuffix(su.name, "Ext") {
 			break
 		}
 		if len(su.args) == 0 { // repeat and similar ops

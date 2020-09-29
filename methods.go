@@ -61,6 +61,7 @@ type MethodTransition struct {
 	HiddenPropagate string
 
 	InheritMigration bool
+	WaitTransition   bool
 
 	TransitionTo *MethodDecl
 	HiddenPropTo *MethodDecl

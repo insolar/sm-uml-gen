@@ -90,11 +90,9 @@ func (p *Writer) WriteDecl(d *SMDecl) {
 		for _, tr := range step.Transitions {
 			connIdx++
 
-			waitOperation := false
+			waitOperation := tr.WaitTransition
 
 			if tr.TransitionTo == nil || !tr.TransitionTo.IsSubroutine {
-				waitOperation = tr.Operation != ""
-
 				m := ""
 				switch {
 				case tr.Transition == "<stop>":
