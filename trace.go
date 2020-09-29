@@ -352,9 +352,9 @@ func (p *ExecTrace) exprToValue(expr ast.Expr) *StateUpdate {
 		return nil
 	case *ast.CallExpr:
 		call := p.exprToValue(arg.Fun)
-		call.isCall = true
 		// TODO check for context in args
 		if call != nil {
+			call.isCall = true
 			call.args = arg.Args
 		}
 		return call
